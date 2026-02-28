@@ -337,3 +337,116 @@
             <label>Order ID (0x…)</label>
             <input type="text" id="cancelOrderId" name="orderId" placeholder="0x…" required />
           </div>
+          <button type="submit" class="btn" id="btnCancelSubmit">Cancel order</button>
+        </form>
+      </div>
+    </div>
+
+    <footer>
+      <div>Switch — OTC trading UI for Otc contract</div>
+      <div class="contract-link" id="contractAddressDisplay">Contract: 0x7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6</div>
+      <div style="margin-top: 0.5rem;">Use MetaMask or another Web3 wallet. Ensure you are on the correct network (e.g. Ethereum mainnet).</div>
+      <div style="margin-top: 0.25rem;">Operator: 0x1a2b…c3d4e5 · Treasury: 0x2b3c…4e5f6 · Escrow: 0x3c4d…5f678</div>
+      <div style="margin-top: 0.5rem; font-size: 0.72rem;">Namespace: 0x4d5e6f7890a1b2c3… Max orders: 512. View batch: 48. BPS denominator: 10000.</div>
+    </footer>
+  </div>
+
+  <script>
+    // Switch — OTC UI for Otc contract. Uses ethers v6, same contract address as Transacto / Otc.sol.
+    (function() {
+      const OTC_CONTRACT_ADDRESS = '0x7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6';
+      const OTC_VIEW_BATCH = 48;
+      const OTC_BPS_DENOM = 10000n;
+      const PRICE_DECIMALS = 10n ** 18n;
+      const STATUS_OPEN = 0;
+      const STATUS_FILLED = 1;
+      const STATUS_CANCELLED = 2;
+      const OTC_ASSET_CRYPTO = 0;
+      const OTC_ASSET_RWA = 1;
+      const OTC_MAX_ORDERS = 512;
+      const OTC_NAMESPACE = '0x4d5e6f7890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e';
+
+      const ABI_VIEW = [
+        'function getOrderIdsLength() view returns (uint256)',
+        'function getOrderViewByIndex(uint256 index) view returns (tuple(bytes32 orderId, address maker, uint8 assetType, bytes32 assetId, uint256 amount, uint256 pricePerUnit, bool isSell, uint256 filledAmount, uint8 status, uint256 createdAt))',
+        'function getOrderView(bytes32 orderId) view returns (tuple(bytes32 orderId, address maker, uint8 assetType, bytes32 assetId, uint256 amount, uint256 pricePerUnit, bool isSell, uint256 filledAmount, uint8 status, uint256 createdAt))',
+        'function isPlatformPaused() view returns (bool)',
+        'function minOrderSize() view returns (uint256)',
+        'function feePercentBps() view returns (uint256)',
+        'function getFillValue(bytes32 orderId, uint256 fillAmount) view returns (uint256)'
+      ];
+      const ABI_WRITE = [
+        'function postOrder(uint8 assetType, bytes32 assetId, uint256 amount, uint256 pricePerUnit, bool isSell) payable returns (bytes32)',
+        'function fillOrder(bytes32 orderId, uint256 fillAmount) payable',
+        'function cancelOrder(bytes32 orderId)'
+      ];
+      const ABI = [...ABI_VIEW, ...ABI_WRITE];
+
+      let provider = null;
+      let signer = null;
+      let contract = null;
+      let ordersOffset = 0;
+      let orderIdsLength = 0;
+
+      function shortAddr(addr) {
+        if (!addr || addr.length < 10) return addr;
+        return addr.slice(0, 6) + '…' + addr.slice(-4);
+      }
+      function shortId(id) {
+        if (!id || id.length < 20) return id;
+        return id.slice(0, 10) + '…' + id.slice(-8);
+      }
+      function statusStr(s) {
+        if (s === STATUS_OPEN) return 'Open';
+        if (s === STATUS_FILLED) return 'Filled';
+        if (s === STATUS_CANCELLED) return 'Cancelled';
+        return 'Unknown';
+      }
+      function assetStr(t) {
+        return t === 0 ? 'Crypto' : 'RWA';
+      }
+
+      function showMsg(elId, text, type) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'msg ' + (type || 'info');
+        el.style.display = 'block';
+      }
+      function hideMsg(elId) {
+        const el = document.getElementById(elId);
+        if (el) { el.style.display = 'none'; }
+      }
+
+      async function ensureProvider() {
+        if (typeof window.ethereum === 'undefined') throw new Error('No wallet (e.g. MetaMask) found.');
+        provider = new ethers.BrowserProvider(window.ethereum);
+        return provider;
+      }
+
+      async function connectWallet() {
+        try {
+          await ensureProvider();
+          const accounts = await provider.send('eth_requestAccounts', []);
+          if (!accounts || !accounts[0]) throw new Error('No account selected.');
+          signer = await provider.getSigner();
+          contract = new ethers.Contract(OTC_CONTRACT_ADDRESS, ABI, signer);
+          document.getElementById('walletDisplay').textContent = shortAddr(accounts[0]);
+          document.getElementById('btnConnect').style.display = 'none';
+          document.getElementById('btnDisconnect').style.display = 'inline-block';
+          await refreshPlatform();
+          await refreshOrders();
+          const chainId = await getChainId();
+          document.getElementById('chainIdDisplay').textContent = 'Chain: ' + (chainId != null ? chainId : '—');
+        } catch (e) {
+          showMsg('platformMsg', 'Wallet: ' + (e.message || e), 'error');
+        }
+      }
+
+      function disconnectWallet() {
+        signer = null;
+        contract = null;
+        provider = null;
+        document.getElementById('walletDisplay').textContent = '';
+        document.getElementById('btnConnect').style.display = 'inline-block';
+        document.getElementById('btnDisconnect').style.display = 'none';
