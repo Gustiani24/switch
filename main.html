@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Switch — OTC Trading · Crypto & RWA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --bg-panel: #12161e;
+      --bg-card: #181d28;
+      --border: #252d3b;
+      --border-soft: #1a2029;
+      --accent: #22c9b8;
+      --accent-dim: #1aa89a;
+      --sell: #ef4444;
+      --buy: #22c55e;
+      --rwa: #a78bfa;
+      --crypto: #fbbf24;
+      --text: #e8ecf1;
+      --text-dim: #8896a6;
+      --glow-accent: rgba(34, 201, 184, 0.15);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+      background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 201, 184, 0.07), transparent 50%);
+    }
+    .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1.25rem; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1rem 0 1.25rem;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 1.5rem;
+    }
+    .logo { font-weight: 700; font-size: 1.75rem; color: var(--accent); letter-spacing: 0.03em; }
+    .tagline { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.25rem; }
+    .header-right { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .wallet-addr { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--accent); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+    .btn {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+    }
+    .btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+    .btn.primary { background: var(--accent-dim); border-color: var(--accent); color: #0c0f14; }
+    .btn.primary:hover { box-shadow: 0 0 16px var(--glow-accent); }
+    .btn.small { padding: 0.4rem 0.75rem; font-size: 0.82rem; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text); font-weight: 600; }
+    .card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-dim); font-weight: 500; }
+    .stats-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+    .stat { background: var(--bg-panel); padding: 0.6rem 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .stat label { color: var(--text-dim); margin-right: 0.5rem; }
+    .stat.paused { border-color: var(--sell); color: var(--sell); }
+    .stat.open { border-color: var(--buy); color: var(--buy); }
+
+    .form-group { margin-bottom: 0.85rem; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.35rem; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+    .orders-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .orders-table th, .orders-table td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-soft); }
+    .orders-table th { color: var(--text-dim); font-weight: 500; }
+    .orders-table tr:hover { background: var(--bg-panel); }
+    .orders-table .id-cell { font-family: 'JetBrains Mono', monospace; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+    .orders-table .addr-cell { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+    .orders-table .side-sell { color: var(--sell); }
+    .orders-table .side-buy { color: var(--buy); }
+    .orders-table .asset-crypto { color: var(--crypto); }
+    .orders-table .asset-rwa { color: var(--rwa); }
+    .orders-table .status-open { color: var(--buy); }
+    .orders-table .status-filled { color: var(--text-dim); }
