@@ -111,3 +111,116 @@
     .orders-table .asset-rwa { color: var(--rwa); }
     .orders-table .status-open { color: var(--buy); }
     .orders-table .status-filled { color: var(--text-dim); }
+    .orders-table .status-cancelled { color: var(--sell); }
+    .orders-table .action-cell { white-space: nowrap; }
+    .orders-table .action-cell button { margin-right: 0.35rem; }
+
+    .msg { padding: 0.6rem 0.9rem; border-radius: var(--radius-sm); margin-bottom: 0.75rem; font-size: 0.85rem; }
+    .msg.error { background: rgba(239, 68, 68, 0.12); border: 1px solid var(--sell); color: #fca5a5; }
+    .msg.success { background: rgba(34, 197, 94, 0.12); border: 1px solid var(--buy); color: #86efac; }
+    .msg.info { background: rgba(34, 201, 184, 0.1); border: 1px solid var(--accent-dim); color: var(--accent); }
+    .empty-state { text-align: center; padding: 2rem; color: var(--text-dim); font-size: 0.9rem; }
+    .loading { text-align: center; padding: 1rem; color: var(--text-dim); }
+    .pagination { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+    .pagination span { font-size: 0.85rem; color: var(--text-dim); }
+
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-soft); }
+    .tabs button { padding: 0.5rem 1rem; background: none; border: none; color: var(--text-dim); cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabs button:hover { color: var(--text); }
+    .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-soft); font-size: 0.78rem; color: var(--text-dim); text-align: center; }
+    .contract-link { font-family: 'JetBrains Mono', monospace; word-break: break-all; margin-top: 0.5rem; }
+    .help-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.9rem; font-size: 0.82rem; color: var(--text-dim); margin-top: 0.75rem; }
+    .help-box h4 { color: var(--text); font-size: 0.9rem; margin-bottom: 0.4rem; }
+    .help-box ul { margin-left: 1rem; }
+    .my-orders-list { list-style: none; }
+    .my-orders-list li { padding: 0.4rem 0; border-bottom: 1px solid var(--border-soft); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .my-orders-list li:last-child { border-bottom: none; }
+    .chain-badge { display: inline-block; padding: 0.2rem 0.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; margin-left: 0.5rem; }
+    .stat.chain-badge { margin-left: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    @media (max-width: 640px) {
+      .app { padding: 1rem 0.75rem; }
+      .stats-row { flex-direction: column; }
+      .orders-table { font-size: 0.75rem; }
+      .orders-table th:nth-child(5), .orders-table th:nth-child(6), .orders-table td:nth-child(5), .orders-table td:nth-child(6) { display: none; }
+    }
+    @media print {
+      .btn, .tabs, #formPost, #formFill, #formCancel, .pagination { display: none !important; }
+      .card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <div class="logo">Switch</div>
+        <div class="tagline">OTC platform · Crypto & RWA</div>
+      </div>
+      <div class="header-right">
+        <span id="walletDisplay" class="wallet-addr"></span>
+        <button type="button" class="btn primary" id="btnConnect">Connect wallet</button>
+        <button type="button" class="btn" id="btnDisconnect" style="display:none;">Disconnect</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>Platform</h2>
+      <div class="stats-row" id="platformStats">
+        <span class="stat"><label>Total orders</label><span id="statTotal">—</span></span>
+        <span class="stat open"><label>Open</label><span id="statOpen">—</span></span>
+        <span class="stat"><label>Min order (wei)</label><span id="statMinWei">—</span></span>
+        <span class="stat"><label>Fee (bps)</label><span id="statFeeBps">—</span></span>
+        <span class="stat" id="statPausedWrap"><label>Status</label><span id="statPaused">—</span></span>
+        <span class="stat chain-badge" id="chainIdDisplay">Chain: —</span>
+      </div>
+      <div id="platformMsg" class="msg info" style="display:none;"></div>
+    </div>
+
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="orders">Order book</button>
+      <button type="button" class="tab" data-tab="post">Post order</button>
+      <button type="button" class="tab" data-tab="fill">Fill / Cancel</button>
+      <button type="button" class="tab" data-tab="myorders">My orders</button>
+      <button type="button" class="tab" data-tab="help">Help</button>
+    </div>
+
+    <div id="panelOrders" class="tab-panel active">
+      <div class="card">
+        <h2>Orders</h2>
+        <div id="ordersContainer">
+          <div class="loading" id="ordersLoading">Loading…</div>
+          <table class="orders-table" id="ordersTable" style="display:none;">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Maker</th>
+                <th>Asset</th>
+                <th>Side</th>
+                <th>Amount</th>
+                <th>Price</th>
+                <th>Filled</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ordersBody"></tbody>
+          </table>
+          <div class="empty-state" id="ordersEmpty" style="display:none;">No orders.</div>
+        </div>
+        <div class="pagination">
+          <button type="button" class="btn small" id="btnOrdersPrev">Prev</button>
+          <span id="ordersPageInfo">Page 1</span>
+          <button type="button" class="btn small" id="btnOrdersNext">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelPost" class="tab-panel">
+      <div class="card">
+        <h2>Post order</h2>
