@@ -224,3 +224,116 @@
     <div id="panelPost" class="tab-panel">
       <div class="card">
         <h2>Post order</h2>
+        <div id="postMsg" class="msg" style="display:none;"></div>
+        <form id="formPost">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Asset type</label>
+              <select id="postAssetType" name="assetType">
+                <option value="0">Crypto (native)</option>
+                <option value="1">RWA</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Asset ID (hex, 0 for crypto)</label>
+              <input type="text" id="postAssetId" name="assetId" placeholder="0x0…" value="0x0000000000000000000000000000000000000000000000000000000000000000" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Amount (wei / units)</label>
+              <input type="text" id="postAmount" name="amount" placeholder="1000000000000000000" required />
+            </div>
+            <div class="form-group">
+              <label>Price per unit (1e18)</label>
+              <input type="text" id="postPrice" name="pricePerUnit" placeholder="1000000000000000000" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" id="postIsSell" name="isSell" /> Sell order (crypto sell: send wei with tx)</label>
+          </div>
+          <button type="submit" class="btn primary" id="btnPostSubmit">Post order</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="panelMyorders" class="tab-panel">
+      <div class="card">
+        <h2>My orders</h2>
+        <p style="font-size:0.85rem; color: var(--text-dim); margin-bottom: 0.75rem;">Orders where you are the maker. Connect wallet to load.</p>
+        <div id="myOrdersLoading" class="loading" style="display:none;">Loading…</div>
+        <ul class="my-orders-list" id="myOrdersList"></ul>
+        <div class="empty-state" id="myOrdersEmpty" style="display:none;">No orders from your wallet.</div>
+      </div>
+    </div>
+
+    <div id="panelHelp" class="tab-panel">
+      <div class="card">
+        <h2>Help</h2>
+        <div class="help-box">
+          <h4>Asset types</h4>
+          <ul>
+            <li><strong>Crypto (0)</strong>: Native ETH. For sell orders you must send wei equal to amount with the transaction.</li>
+            <li><strong>RWA (1)</strong>: Tokenized real-world assets. Use asset ID (bytes32). Fills are recorded off-chain by the escrow keeper.</li>
+          </ul>
+        </div>
+        <div class="help-box">
+          <h4>Post order</h4>
+          <p>Amount and price use 1e18 decimals. Total order value = amount × price / 1e18 (in wei). Must be ≥ min order wei. For crypto sell, send wei = amount.</p>
+        </div>
+        <div class="help-box">
+          <h4>Fill order</h4>
+          <p>Send wei = fillAmount × pricePerUnit / 1e18. A fee (basis points) is sent to the treasury. Use "Fill" on a row in the order book to copy the order ID.</p>
+        </div>
+        <div class="help-box">
+          <h4>Cancel</h4>
+          <p>Only the maker or the operator can cancel. For open crypto sell orders, unfilled wei is refunded to the maker.</p>
+        </div>
+        <div class="help-box">
+          <h4>Contract</h4>
+          <p>Otc contract on EVM. Operator can pause, set min order size and fee bps. Escrow keeper handles RWA settlement release.</p>
+        </div>
+        <div class="help-box">
+          <h4>Price decimals</h4>
+          <p>All amounts and prices use 18 decimals (1e18). Example: 1 unit = 1000000000000000000, price 2.5 = 2500000000000000000. Total value in wei = amount × price / 1e18.</p>
+        </div>
+        <div class="help-box">
+          <h4>Refresh</h4>
+          <p>After posting, filling or cancelling an order, the order book and platform stats update automatically. You can also call refreshAll() in the console to refresh all data.</p>
+        </div>
+        <div class="help-box">
+          <h4>Order book actions</h4>
+          <p>Click "Fill" on an open order to copy its order ID into the Fill form. Then enter the fill amount; the required wei value is shown automatically when the order is loaded.</p>
+        </div>
+        <div class="help-box">
+          <h4>Transacto</h4>
+          <p>For CLI and batch operations, use the Transacto Java app with the same contract address and RPC. It can list orders, build calldata for post/fill/cancel, and export to CSV.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelFill" class="tab-panel">
+      <div class="card">
+        <h2>Fill order</h2>
+        <div id="fillMsg" class="msg" style="display:none;"></div>
+        <form id="formFill">
+          <div class="form-group">
+            <label>Order ID (0x…)</label>
+            <input type="text" id="fillOrderId" name="orderId" placeholder="0x…" required />
+          </div>
+          <div class="form-group">
+            <label>Fill amount</label>
+            <input type="text" id="fillAmount" name="fillAmount" placeholder="1000000000000000000" required />
+          </div>
+          <p class="form-group" style="font-size:0.85rem; color: var(--text-dim);">Required wei value will be shown after loading order.</p>
+          <button type="submit" class="btn primary" id="btnFillSubmit">Fill order</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Cancel order</h2>
+        <div id="cancelMsg" class="msg" style="display:none;"></div>
+        <form id="formCancel">
+          <div class="form-group">
+            <label>Order ID (0x…)</label>
+            <input type="text" id="cancelOrderId" name="orderId" placeholder="0x…" required />
+          </div>
