@@ -450,3 +450,116 @@
         document.getElementById('walletDisplay').textContent = '';
         document.getElementById('btnConnect').style.display = 'inline-block';
         document.getElementById('btnDisconnect').style.display = 'none';
+        document.getElementById('statTotal').textContent = '—';
+        document.getElementById('statOpen').textContent = '—';
+        document.getElementById('statMinWei').textContent = '—';
+        document.getElementById('statFeeBps').textContent = '—';
+        document.getElementById('statPaused').textContent = '—';
+        document.getElementById('chainIdDisplay').textContent = 'Chain: —';
+        document.getElementById('ordersBody').innerHTML = '';
+        document.getElementById('ordersTable').style.display = 'none';
+        document.getElementById('ordersEmpty').style.display = 'block';
+        document.getElementById('ordersLoading').style.display = 'none';
+      }
+
+      async function refreshPlatform() {
+        if (!contract) return;
+        try {
+          const [total, paused, minWei, feeBps] = await Promise.all([
+            contract.getOrderIdsLength(),
+            contract.isPlatformPaused(),
+            contract.minOrderSize(),
+            contract.feePercentBps()
+          ]);
+          orderIdsLength = Number(total);
+          let openCount = 0;
+          for (let i = 0; i < Math.min(orderIdsLength, 512); i++) {
+            const v = await contract.getOrderViewByIndex(i);
+            if (Number(v.status) === STATUS_OPEN) openCount++;
+          }
+          document.getElementById('statTotal').textContent = orderIdsLength;
+          document.getElementById('statOpen').textContent = openCount;
+          document.getElementById('statMinWei').textContent = minWei.toString();
+          document.getElementById('statFeeBps').textContent = feeBps.toString();
+          document.getElementById('statPaused').textContent = paused ? 'Paused' : 'Active';
+          const wrap = document.getElementById('statPausedWrap');
+          if (paused) wrap.classList.add('paused'); else wrap.classList.remove('paused');
+          hideMsg('platformMsg');
+        } catch (e) {
+          showMsg('platformMsg', 'Platform: ' + (e.message || e), 'error');
+        }
+      }
+
+      async function refreshOrders() {
+        const loading = document.getElementById('ordersLoading');
+        const table = document.getElementById('ordersTable');
+        const empty = document.getElementById('ordersEmpty');
+        const tbody = document.getElementById('ordersBody');
+        if (!contract) {
+          loading.style.display = 'none';
+          table.style.display = 'none';
+          empty.style.display = 'block';
+          empty.textContent = 'Connect wallet to load orders.';
+          return;
+        }
+        loading.style.display = 'block';
+        table.style.display = 'none';
+        empty.style.display = 'none';
+        try {
+          const len = await contract.getOrderIdsLength();
+          const total = Number(len);
+          const from = Math.max(0, ordersOffset);
+          const to = Math.min(from + OTC_VIEW_BATCH, total);
+          tbody.innerHTML = '';
+          if (total === 0) {
+            loading.style.display = 'none';
+            empty.style.display = 'block';
+            empty.textContent = 'No orders.';
+            return;
+          }
+          for (let i = from; i < to; i++) {
+            const v = await contract.getOrderViewByIndex(i);
+            const orderId = v.orderId;
+            const idHex = typeof orderId === 'string' ? orderId : (orderId && orderId.toHexString ? orderId.toHexString() : '0x');
+            const maker = v.maker;
+            const makerStr = typeof maker === 'string' ? maker : (maker && maker.toString ? maker.toString() : '');
+            const assetType = Number(v.assetType);
+            const amount = v.amount && v.amount.toString ? v.amount.toString() : String(v.amount);
+            const price = v.pricePerUnit && v.pricePerUnit.toString ? v.pricePerUnit.toString() : String(v.pricePerUnit);
+            const filled = v.filledAmount && v.filledAmount.toString ? v.filledAmount.toString() : String(v.filledAmount);
+            const isSell = v.isSell === true || v.isSell === 'true';
+            const status = Number(v.status);
+            const statusCl = status === STATUS_OPEN ? 'status-open' : (status === STATUS_FILLED ? 'status-filled' : 'status-cancelled');
+            const sideCl = isSell ? 'side-sell' : 'side-buy';
+            const assetCl = assetType === 0 ? 'asset-crypto' : 'asset-rwa';
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td class="id-cell" title="' + idHex + '">' + shortId(idHex) + '</td>' +
+              '<td class="addr-cell">' + shortAddr(makerStr) + '</td>' +
+              '<td class="' + assetCl + '">' + assetStr(assetType) + '</td>' +
+              '<td class="' + sideCl + '">' + (isSell ? 'Sell' : 'Buy') + '</td>' +
+              '<td>' + amount + '</td>' +
+              '<td>' + price + '</td>' +
+              '<td>' + filled + '</td>' +
+              '<td class="' + statusCl + '">' + statusStr(status) + '</td>' +
+              '<td class="action-cell">' +
+              (status === STATUS_OPEN ? '<button type="button" class="btn small fill-one" data-id="' + idHex + '">Fill</button>' : '') +
+              '</td>';
+            tbody.appendChild(tr);
+          }
+          document.getElementById('ordersPageInfo').textContent = 'Page ' + (Math.floor(from / OTC_VIEW_BATCH) + 1) + ' (' + from + '–' + (to - 1) + ' of ' + total + ')';
+          loading.style.display = 'none';
+          table.style.display = 'table';
+          table.querySelectorAll('.fill-one').forEach(btn => {
+            btn.addEventListener('click', function() {
+              document.getElementById('fillOrderId').value = this.getAttribute('data-id');
+              document.querySelector('.tabs button[data-tab="fill"]').click();
+            });
+          });
+        } catch (e) {
+          loading.style.display = 'none';
+          empty.style.display = 'block';
+          empty.textContent = 'Error: ' + (e.message || e);
+        }
+      }
+
