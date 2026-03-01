@@ -563,3 +563,116 @@
         }
       }
 
+      document.getElementById('btnConnect').addEventListener('click', connectWallet);
+      document.getElementById('btnDisconnect').addEventListener('click', disconnectWallet);
+
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+          this.classList.add('active');
+          const tabName = this.getAttribute('data-tab');
+          const panelId = 'panel' + (tabName === 'myorders' ? 'Myorders' : (tabName === 'help' ? 'Help' : tabName.charAt(0).toUpperCase() + tabName.slice(1)));
+          const panel = document.getElementById(panelId);
+          if (panel) panel.classList.add('active');
+          if (tabName === 'myorders') refreshMyOrders();
+        });
+      });
+
+      async function refreshMyOrders() {
+        const listEl = document.getElementById('myOrdersList');
+        const loadingEl = document.getElementById('myOrdersLoading');
+        const emptyEl = document.getElementById('myOrdersEmpty');
+        if (!signer || !contract) {
+          listEl.innerHTML = '';
+          loadingEl.style.display = 'none';
+          emptyEl.style.display = 'block';
+          emptyEl.textContent = 'Connect wallet to see your orders.';
+          return;
+        }
+        loadingEl.style.display = 'block';
+        emptyEl.style.display = 'none';
+        listEl.innerHTML = '';
+        try {
+          const myAddr = (await signer.getAddress()).toLowerCase();
+          const len = await contract.getOrderIdsLength();
+          const total = Number(len);
+          let count = 0;
+          for (let i = 0; i < Math.min(total, 256); i++) {
+            const v = await contract.getOrderViewByIndex(i);
+            const maker = (v.maker && v.maker.toString ? v.maker.toString() : String(v.maker)).toLowerCase();
+            if (maker !== myAddr) continue;
+            count++;
+            const orderId = v.orderId && v.orderId.toHexString ? v.orderId.toHexString() : (typeof v.orderId === 'string' ? v.orderId : '0x');
+            const amount = v.amount && v.amount.toString ? v.amount.toString() : String(v.amount);
+            const status = Number(v.status);
+            const isSell = v.isSell === true || v.isSell === 'true';
+            const li = document.createElement('li');
+            li.innerHTML = '<span>' + shortId(orderId) + '</span> <span>' + (isSell ? 'Sell' : 'Buy') + ' ' + amount + '</span> <span class="' + (status === STATUS_OPEN ? 'status-open' : 'status-filled') + '">' + statusStr(status) + '</span>';
+            listEl.appendChild(li);
+          }
+          loadingEl.style.display = 'none';
+          if (count === 0) emptyEl.style.display = 'block'; else emptyEl.style.display = 'none';
+        } catch (e) {
+          loadingEl.style.display = 'none';
+          emptyEl.style.display = 'block';
+          emptyEl.textContent = 'Error: ' + (e.message || e);
+        }
+      }
+
+      async function getChainId() {
+        if (!provider) return null;
+        try {
+          const network = await provider.getNetwork();
+          return network && network.chainId ? Number(network.chainId) : null;
+        } catch (_) { return null; }
+      }
+
+      function formatWei(wei) {
+        if (typeof wei !== 'bigint' && wei != null) wei = BigInt(wei);
+        if (wei === null || wei === undefined) return '0';
+        const s = wei.toString();
+        if (s.length <= 18) return '0.' + s.padStart(18, '0').replace(/0+$/, '');
+        const intPart = s.slice(0, -18) || '0';
+        const decPart = s.slice(-18).replace(/0+$/, '');
+        return decPart ? intPart + '.' + decPart : intPart;
+      }
+
+      document.getElementById('btnOrdersPrev').addEventListener('click', function() {
+        ordersOffset = Math.max(0, ordersOffset - OTC_VIEW_BATCH);
+        refreshOrders();
+      });
+      document.getElementById('btnOrdersNext').addEventListener('click', function() {
+        if (ordersOffset + OTC_VIEW_BATCH < orderIdsLength) {
+          ordersOffset += OTC_VIEW_BATCH;
+          refreshOrders();
+        }
+      });
+
+      document.getElementById('formPost').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (!contract) { showMsg('postMsg', 'Connect wallet first.', 'error'); return; }
+        hideMsg('postMsg');
+        const assetType = parseInt(document.getElementById('postAssetType').value, 10);
+        let assetId = document.getElementById('postAssetId').value.trim();
+        if (!assetId.startsWith('0x')) assetId = '0x' + assetId;
+        const amount = BigInt(document.getElementById('postAmount').value.trim());
+        const pricePerUnit = BigInt(document.getElementById('postPrice').value.trim());
+        const isSell = document.getElementById('postIsSell').checked;
+        let valueWei = 0n;
+        if (isSell && assetType === 0) valueWei = amount;
+        try {
+          const tx = await contract.postOrder(assetType, assetId, amount, pricePerUnit, isSell, { value: valueWei });
+          showMsg('postMsg', 'Tx sent: ' + tx.hash, 'info');
+          await tx.wait();
+          showMsg('postMsg', 'Order posted.', 'success');
+          await refreshPlatform();
+          await refreshOrders();
+        } catch (err) {
+          showMsg('postMsg', 'Error: ' + (err.message || err), 'error');
+        }
+      });
+
+      document.getElementById('formFill').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (!contract) { showMsg('fillMsg', 'Connect wallet first.', 'error'); return; }
